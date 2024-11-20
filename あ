@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FCモバイル 選手データ管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>FCモバイル クラス＆カード種類別選手管理</h1>
+
+  <!-- クラスとカード種類選択 -->
+  <form id="classCardForm">
+    <label for="playerClass">選手クラス:</label>
+    <select id="playerClass">
+      <option value="ゴールキーパー">ゴールキーパー</option>
+      <option value="ディフェンダー">ディフェンダー</option>
+      <option value="ミッドフィルダー">ミッドフィルダー</option>
+      <option value="フォワード">フォワード</option>
+    </select>
+    <br>
+    <label for="cardType">カード種類:</label>
+    <select id="cardType">
+      <option value="ノーマル">ノーマル</option>
+      <option value="レア">レア</option>
+      <option value="スペシャル">スペシャル</option>
+    </select>
+    <br>
+    <button type="button" id="selectClassCardButton">クラスとカード種類を選択</button>
+  </form>
+
+  <!-- プレイヤー情報入力 -->
+  <form id="playerForm" style="display: none;">
+    <h2 id="selectedClassCard">選手クラス: ゴールキーパー | カード種類: ノーマル</h2>
+    <label for="playerName">選手名:</label>
+    <input type="text" id="playerName" required>
+    <br>
+    <label for="initialPrice">初期価格（万円）:</label>
+    <input type="number" id="initialPrice" required>
+    <br>
+    <label for="changeRate">1日の変化率（%）:</label>
+    <input type="number" id="changeRate" required>
+    <br>
+    <label for="currentTP">現在所持TP（万円）:</label>
+    <input type="number" id="currentTP" required>
+    <br>
+    <button type="submit">予測を表示</button>
+  </form>
+
+  <!-- メッセージと履歴 -->
+  <h2 id="bestTime" style="color: green;"></h2>
+  <h3>過去の価格履歴</h3>
+  <ul id="priceHistory"></ul>
+  <canvas id="priceChart" width="400" height="200"></canvas>
+
+  <script>
+    const classCardForm = document.getElementById('classCardForm');
+    const playerForm = document.getElementById('playerForm');
+    const priceHistoryList = document.getElementById('priceHistory');
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    const selectedClassCardTitle = document.getElementById('selectedClassCard');
+    let chart;
+
+    let currentClass = "ゴールキーパー"; // 初期値
+    let currentCardType = "ノーマル"; // 初期値
+
+    // ローカルストレージからクラス＆カード種類ごとの履歴を取得
+    const getHistory = (playerClass, cardType, playerName) => {
+      const history = JSON.parse(localStorage.getItem('classCardData')) || {};
+      const classData = history[playerClass] || {};
+      const cardData = classData[cardType] || {};
+      return cardData[playerName] || [];
+    };
+
+    // ローカルストレージにクラス＆カード種類ごとの履歴を保存
+    const saveHistory = (playerClass, cardType, playerName, prices) => {
+      const history = JSON.parse(localStorage.getItem('classCardData')) || {};
+      if (!history[playerClass]) history[playerClass] = {};
+      if (!history[playerClass][cardType]) history[playerClass][cardType] = {};
+      history[playerClass][cardType][playerName] = prices;
+      localStorage.setItem('classCardData', JSON.stringify(history));
+    };
+
+    // 履歴リストを更新
+    const updateHistoryList = (playerClass, cardType, playerName) => {
+      const history = getHistory(playerClass, cardType, playerName);
+      priceHistoryList.innerHTML = '';
+      if (history.length === 0) {
+        priceHistoryList.innerHTML = '<li>履歴がありません。</li>';
+      } else {
+        history.forEach((price, index) => {
+          const li = document.createElement('li');
+          li.textContent = `Day ${index + 1}: ${price} 万円`;
+          priceHistoryList.appendChild(li);
+        });
+      }
+    };
+
+    // クラス＆カード種類選択時の動作
+    classCardForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+    });
+
+    document.getElementById('selectClassCardButton').addEventListener('click', () => {
+      currentClass = document.getElementById('playerClass').value;
+      currentCardType = document.getElementById('cardType').value;
+      playerForm.style.display = 'block';
+      selectedClassCardTitle.textContent = `選手クラス: ${currentClass} | カード種類: ${currentCardType}`;
+    });
+
+    // 選手情報入力時の動作
+    playerForm.addEventListener('submit', function(event) {
+      event.preventDefault();
+
+      // フォームデータを取得
+      const playerName = document.getElementById('playerName').value;
+      const initialPrice = parseFloat(document.getElementById('initialPrice').value);
+      const changeRate = parseFloat(document.getElementById('changeRate').value);
+      const currentTP = parseFloat(document.getElementById('currentTP').value);
+
+      // 過去の価格履歴を取得
+      let prices = getHistory(currentClass, currentCardType, playerName);
+
+      // 履歴がない場合は初期価格を追加
+      if (prices.length === 0) {
+        prices.push(initialPrice);
+      }
+
+      // 新しい価格を10日分計算し履歴に追加
+      const days = Array.from({ length: 10 }, (_, i) => i + 1);
+      for (let i = prices.length; i < days.length; i++) {
+        const previousPrice = prices[i - 1];
+        const newPrice = previousPrice * (1 + changeRate / 100);
+        prices.push(parseFloat(newPrice.toFixed(2))); // 小数点2桁まで
+      }
+
+      // 履歴を保存
+      saveHistory(currentClass, currentCardType, playerName, prices);
+
+      // 履歴リストを更新
+      updateHistoryList(currentClass, currentCardType, playerName);
+
+      // 最適購入時期を判定
+      let bestDay = -1;
+      let minPrice = Number.MAX_VALUE;
+
+      for (let i = 0; i < prices.length; i++) {
+        if (prices[i] <= currentTP && prices[i] < minPrice) {
+          minPrice = prices[i];
+          bestDay = i + 1; // 配列は0始まりだが、日付は1始まり
+        }
+      }
+
+      // メッセージを更新
+      const bestTimeMessage = document.getElementById('bestTime');
+      if (bestDay !== -1) {
+        bestTimeMessage.textContent = `${playerName}を購入するのに最適な時期は Day ${bestDay} です。予想価格は ${minPrice} 万円です。`;
+      } else {
+        bestTimeMessage.textContent = `現在のTPでは${playerName}を購入できる時期はありません。`;
+      }
+
+      // グラフを更新
+      if (chart) {
+        chart.destroy();
+      }
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: days.map(day => `Day ${day}`),
+          datasets: [{
+            label: `${playerName} の価格変化`,
+            data: prices,
+            borderColor: 'blue',
+            backgroundColor: 'rgba(173, 216, 230, 0.5)',
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: true
+            }
+          },
+          scales: {
+            x: {
+              title: {
+                display: true,
+                text: '日数'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: '価格（万円）'
+              }
+            }
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html
