@@ -1,0 +1,40 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# 1. データを読み込む（CSVファイルとして保存していると仮定）
+data = pd.read_csv("transfer_market_data.csv")
+
+# 2. データの概要を確認
+print(data.head())
+
+# 3. 選手ごとの移籍金を棒グラフで表示
+plt.figure(figsize=(10, 6))
+sns.barplot(x="選手名", y="移籍金(€)", data=data, palette="viridis")
+plt.title("選手ごとの移籍金")
+plt.ylabel("移籍金 (€)")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+# 4. 移籍金の平均を算出
+average_transfer_fee = data["移籍金(€)"].mean()
+print(f"移籍金の平均: {average_transfer_fee:,.0f} €")
+
+# 5. ポジションごとの平均移籍金を棒グラフで表示
+position_avg = data.groupby("ポジション")["移籍金(€)"].mean().reset_index()
+
+plt.figure(figsize=(8, 5))
+sns.barplot(x="ポジション", y="移籍金(€)", data=position_avg, palette="coolwarm")
+plt.title("ポジションごとの平均移籍金")
+plt.ylabel("平均移籍金 (€)")
+plt.tight_layout()
+plt.show()
+
+# 6. 年齢と移籍金の関係を散布図で表示
+plt.figure(figsize=(8, 5))
+sns.scatterplot(x="年齢", y="移籍金(€)", data=data, hue="ポジション", palette="tab10")
+plt.title("年齢と移籍金の関係")
+plt.ylabel("移籍金 (€)")
+plt.tight_layout()
+plt.show()
