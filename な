@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>移籍市場価格予測ツール</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        label, input, button {
+            margin: 10px 0;
+        }
+        table {
+            margin-top: 20px;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        canvas {
+            margin-top: 20px;
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>移籍市場価格予測ツール</h1>
+    <form id="playerForm">
+        <label for="playerName">選手名:</label>
+        <input type="text" id="playerName" placeholder="選手名を入力" required>
+        <label for="prices">移籍市場の価格 (カンマ区切りで入力):</label>
+        <input type="text" id="prices" placeholder="例: 1000000,1200000,1300000" required>
+        <button type="submit">予測を表示</button>
+    </form>
+
+    <div id="result">
+        <!-- 結果を表示する部分 -->
+    </div>
+
+    <canvas id="priceChart"></canvas>
+
+    <script>
+        document.getElementById('playerForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            // フォームの値を取得
+            const playerName = document.getElementById('playerName').value.trim();
+            const pricesInput = document.getElementById('prices').value.trim();
+
+            // 移籍市場価格を配列として処理
+            const prices = pricesInput.split(',').map(price => parseFloat(price));
+            if (prices.some(isNaN)) {
+                alert("価格に数字を入力してください。");
+                return;
+            }
+
+            // 平均価格の計算
+            const total = prices.reduce((acc, price) => acc + price, 0);
+            const averagePrice = total / prices.length;
+
+            // 将来の価格予測（年率5%増加）
+            const futurePrice = averagePrice * 1.05;
+
+            // 結果を表示
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <h2>${playerName} の分析結果</h2>
+                <table>
+                    <tr>
+                        <th>選手名</th>
+                        <td>${playerName}</td>
+                    </tr>
+                    <tr>
+                        <th>平均市場価格</th>
+                        <td>¥${averagePrice.toLocaleString()}</td>
+                    </tr>
+                    <tr>
+                        <th>将来予測価格 (1年後)</th>
+                        <td>¥${futurePrice.toLocaleString()}</td>
+                    </tr>
+                </table>
+            `;
+
+            // グラフデータの準備
+            const labels = prices.map((_, index) => `データ${index + 1}`);
+            labels.push("予測価格");
+            const data = [...prices, futurePrice];
+
+            // グラフを描画
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            if (window.myChart) {
+                window.myChart.destroy(); // 古いグラフを削除
+            }
+            window.myChart = new Chart(ctx, {
+                type: 'line', // 折れ線グラフ
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${playerName} の価格推移`,
+                        data: data,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '価格 (円)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'データポイント'
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
